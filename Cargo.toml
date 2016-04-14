@@ -1,0 +1,7 @@
+[package]
+name = "rhttpd"
+version = "0.1.0"
+authors = ["SJFrK <contact@q5n.de>"]
+
+[dependencies]
+time = "*"

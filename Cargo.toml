@@ -1,5 +1,5 @@
 [package]
-name = "rhttpd"
+name = "rshttpd"
 version = "0.1.0"
 authors = ["SJFrK <contact@q5n.de>"]
 

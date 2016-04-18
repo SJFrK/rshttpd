@@ -1,5 +1,6 @@
 extern crate regex;
 extern crate time;
+extern crate rustc_serialize;
 
 use std::net::{TcpListener, TcpStream};
 use std::thread;
@@ -9,30 +10,45 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use self::regex::Regex;
+use self::rustc_serialize::json::Json;
 
 #[derive(Clone)]
 pub struct Server {
-	port: u32,
+	listen: String,
 	docroot: String
 }
 
 impl Server {
-	pub fn new(port: u32) -> Server {
+	pub fn new() -> Server {
+		let mut input = String::new();
+		File::open("rshttpd.json").and_then(|mut f| {
+			f.read_to_string(&mut input)
+		}).unwrap();
+
+		let data = Json::from_str(input.as_str()).unwrap();
+		let config = data.as_object().expect("Config is not a valid JSON file.");
+
+		let listen = config.get("listen").and_then(|json| {
+			json.as_string()
+		}).expect("'config.listen' was missing or is not a valid string");
+
+		let docroot = config.get("docroot").and_then(|json| {
+			json.as_string()
+		}).expect("'config.docroot' was missing or is not a valid string");
+
+
 		Server {
-			port: port,
-			docroot: "/var/www/".to_string()
+			listen: listen.to_string(),
+			docroot: docroot.to_string()
 		}
 	}
 
 	pub fn run(&self) {
 		info!("Starting rshttpd. The time is {}", time::now_utc().ctime());
+		info!("Binding to address {}", self.listen);
 
-		// TODO: make ip and port configurable
-		let addr = format!("127.0.0.1:{}", self.port);
-
-		info!("Binding to address {}", addr);
-
-		let socket = TcpListener::bind(addr.as_str()).unwrap();
+		let socket = TcpListener::bind(self.listen.as_str()).unwrap();
 
 		for stream in socket.incoming() {
 			match stream {
@@ -85,12 +101,12 @@ impl Server {
 			// we can unwrap, there has to be at least one line
 			let first = lines.nth(0).unwrap();
 
-			let re = regex::Regex::new(r"^(\w+)\s+(\S+)\s+(\S+)$").unwrap();
+			let re = Regex::new(r"^(\w+)\s+(\S+)\s+(\S+)$").unwrap();
 
 			for cap in re.captures_iter(first) {
 				let method = cap.at(1).unwrap_or("");
 				let uri = cap.at(2).unwrap_or("");
-				let protocol = cap.at(3).unwrap_or("");
+				//let protocol = cap.at(3).unwrap_or("");
 
 				if method == "GET" {
 					let mut path = PathBuf::from(self.docroot.clone());
@@ -162,8 +178,9 @@ impl Server {
 
 		let resp = format!("HTTP/1.1 {} {}\r\n{}\r\n", status, self.get_message(status), hstr);
 
-		stream.write_all(&resp.into_bytes());
-		stream.write_all(content);
+		// TODO: check if write was successful
+		let _ = stream.write_all(&resp.into_bytes());
+		let _ = stream.write_all(content);
 	}
 
 	fn get_type(&self, extension: Option<&str>) -> &str {

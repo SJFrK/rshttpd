@@ -15,6 +15,6 @@ fn main() {
 		Err(e) => panic!("Could not initialize logger: {}", e)
 	}
 
-	let server = rshttpd::server::Server::new(8080);
+	let server = rshttpd::server::Server::new();
 	server.run();
 }
